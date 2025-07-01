@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+body {
+    font-family: 'Noto Sans SC', sans-serif;
+}
+
+/* Custom scrollbar for webkit browsers */
+#daily-plan-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#daily-plan-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+#daily-plan-list::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
+
+#daily-plan-list::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+.sortable-item {
+    cursor: grab;
+    user-select: none;
+}
+
+.sortable-item.dragging {
+    opacity: 0.5;
+    background: #eef2ff;
+    cursor: grabbing;
+}
