@@ -1,0 +1,255 @@
+import { fetchData } from './api_handler.js';
+
+let planData = null;
+const THEME_COLORS = ['#EA580C', '#0EA5E9', '#10B981', '#8B5CF6', '#D946EF', '#EC4899'];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        planData = await fetchData();
+        initComponents();
+    } catch (error) {
+        console.error('Failed to initialize admin panel:', error);
+        document.getElementById('root').innerHTML = '<div class="text-center p-8 text-red-500">无法加载管理后台数据。</div>';
+    }
+});
+
+function initComponents() {
+    renderThemeSettings();
+    renderGeneralInfo();
+    renderDailyPlanList();
+    renderExerciseLib();
+    setupEventListeners();
+    lucide.createIcons();
+}
+
+function renderThemeSettings() {
+    const palette = document.getElementById('color-palette');
+    palette.innerHTML = '';
+    THEME_COLORS.forEach(color => {
+        const isActive = color.toLowerCase() === planData.theme.color.toLowerCase();
+        const colorOption = document.createElement('div');
+        colorOption.className = `w-10 h-10 rounded-full cursor-pointer border-4 ${isActive ? 'border-blue-500' : 'border-transparent'} transition-all`;
+        colorOption.style.backgroundColor = color;
+        colorOption.dataset.color = color;
+        colorOption.onclick = () => {
+            planData.theme.color = color;
+            renderThemeSettings();
+        };
+        palette.appendChild(colorOption);
+    });
+}
+
+function renderGeneralInfo() {
+    const form = document.getElementById('general-info-form');
+    form.innerHTML = `
+        <div>
+            <label for="site-title" class="block text-sm font-medium text-gray-700">网站标题</label>
+            <input type="text" id="site-title" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" value="${planData.plan_info.title}">
+        </div>
+        <div>
+            <label for="site-description" class="block text-sm font-medium text-gray-700">网站描述</label>
+            <textarea id="site-description" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${planData.plan_info.description}</textarea>
+        </div>
+    `;
+}
+
+function renderDailyPlanList() {
+    const container = document.getElementById('daily-plan-list');
+    container.innerHTML = '';
+    planData.daily_schedule.forEach((day, index) => {
+        const item = createDailyPlanItem(day, index);
+        container.appendChild(item);
+    });
+    lucide.createIcons();
+}
+
+function createDailyPlanItem(day, index) {
+    const item = document.createElement('div');
+    item.className = 'p-3 bg-gray-50 rounded-lg border border-gray-200';
+    item.dataset.index = index;
+
+    const allCategories = Object.keys(planData.exercise_categories);
+    const exerciseOptions = allCategories.map(cat => `<option value="${cat}" ${day.exercises.includes(cat) ? 'selected' : ''}>${cat}</option>`).join('');
+
+    item.innerHTML = `
+        <div class="flex items-center justify-between">
+            <input type="date" class="form-input rounded-md text-sm p-1" value="${day.date}">
+            <input type="text" class="form-input rounded-md text-sm p-1 mx-2" placeholder="星期" value="${day.day}">
+            <input type="text" class="form-input rounded-md text-sm p-1 flex-grow" placeholder="训练类型" value="${day.training_type}">
+            <button class="remove-day-btn text-red-500 hover:text-red-700 p-1 ml-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </div>
+        <div class="mt-2">
+            <select multiple class="form-multiselect block w-full mt-1 text-sm rounded-md">
+                ${exerciseOptions}
+            </select>
+        </div>
+    `;
+
+    item.querySelector('.remove-day-btn').onclick = () => {
+        planData.daily_schedule.splice(index, 1);
+        renderDailyPlanList();
+    };
+
+    return item;
+}
+
+function renderExerciseLib() {
+    const container = document.getElementById('exercise-lib-list');
+    container.innerHTML = '';
+    Object.keys(planData.exercise_categories).forEach(catName => {
+        const category = planData.exercise_categories[catName];
+        const item = document.createElement('div');
+        item.className = 'p-4 bg-gray-50 rounded-lg border border-gray-200';
+        item.dataset.category = catName;
+
+        let exercisesHtml = category.exercises.map((ex, exIndex) => `
+            <div class="exercise-item mt-2 p-2 bg-white rounded border" data-ex-index="${exIndex}">
+                <input type="text" class="form-input w-full text-sm mb-1" placeholder="动作名称" value="${ex.name}">
+                <textarea class="form-textarea w-full text-sm mb-1" placeholder="方法">${ex.method}</textarea>
+                <input type="text" class="form-input w-full text-sm mb-1" placeholder="要求" value="${ex.requirement}">
+                <input type="text" class="form-input w-full text-sm" placeholder="备注" value="${ex.notes}">
+                <button class="remove-exercise-btn text-xs text-red-500 hover:text-red-700 mt-1">删除动作</button>
+            </div>
+        `).join('');
+
+        item.innerHTML = `
+            <div class="flex items-center justify-between">
+                <input type="text" class="form-input font-bold text-lg p-1" value="${catName}">
+                <div>
+                     <button class="add-exercise-btn text-xs bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600">添加动作</button>
+                     <button class="remove-category-btn text-red-500 hover:text-red-700 p-1 ml-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+            <textarea class="form-textarea w-full text-sm mt-2" placeholder="分类描述">${category.description}</textarea>
+            <div class="exercises-container mt-2">${exercisesHtml}</div>
+        `;
+        container.appendChild(item);
+    });
+
+    lucide.createIcons();
+    addExerciseLibEventListeners();
+}
+
+function addExerciseLibEventListeners() {
+    document.querySelectorAll('.remove-category-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const catName = e.currentTarget.closest('[data-category]').dataset.category;
+            delete planData.exercise_categories[catName];
+            renderExerciseLib();
+            renderDailyPlanList(); // Re-render daily plan to update exercise options
+        };
+    });
+
+    document.querySelectorAll('.add-exercise-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const catName = e.currentTarget.closest('[data-category]').dataset.category;
+            planData.exercise_categories[catName].exercises.push({name: "", method: "", requirement: "", notes: ""});
+            renderExerciseLib();
+        };
+    });
+    
+     document.querySelectorAll('.remove-exercise-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const catName = e.currentTarget.closest('[data-category]').dataset.category;
+            const exIndex = e.currentTarget.closest('.exercise-item').dataset.exIndex;
+            planData.exercise_categories[catName].exercises.splice(exIndex, 1);
+            renderExerciseLib();
+        };
+    });
+}
+
+
+function setupEventListeners() {
+    document.getElementById('save-changes-btn').addEventListener('click', saveChanges);
+    
+    document.getElementById('add-day-btn').addEventListener('click', () => {
+        const today = new Date().toISOString().split('T')[0];
+        planData.daily_schedule.push({ date: today, day: '新', training_type: '新训练', exercises: [] });
+        renderDailyPlanList();
+    });
+
+    document.getElementById('add-category-btn').addEventListener('click', () => {
+        const newCatName = `新分类 ${Object.keys(planData.exercise_categories).length + 1}`;
+        planData.exercise_categories[newCatName] = { description: "", exercises: [] };
+        renderExerciseLib();
+        renderDailyPlanList();
+    });
+}
+
+
+function collectDataFromDOM() {
+    const newPlanData = {
+        plan_info: {
+            title: document.getElementById('site-title').value,
+            description: document.getElementById('site-description').value,
+        },
+        theme: {
+            color: planData.theme.color // Already updated on click
+        },
+        exercise_categories: {},
+        daily_schedule: []
+    };
+
+
+    document.querySelectorAll('#daily-plan-list > div').forEach(item => {
+        const inputs = item.querySelectorAll('input');
+        const select = item.querySelector('select');
+        const selectedOptions = Array.from(select.selectedOptions).map(opt => opt.value);
+        newPlanData.daily_schedule.push({
+            date: inputs[0].value,
+            day: inputs[1].value,
+            training_type: inputs[2].value,
+            exercises: selectedOptions,
+        });
+    });
+
+
+    document.querySelectorAll('#exercise-lib-list > div').forEach(item => {
+        const catNameInput = item.querySelector('input[type="text"]');
+        const oldCatName = item.dataset.category;
+        const newCatName = catNameInput.value;
+        const description = item.querySelector('textarea').value;
+        const exercises = [];
+
+        item.querySelectorAll('.exercise-item').forEach(exItem => {
+            const inputs = exItem.querySelectorAll('input, textarea');
+            exercises.push({
+                name: inputs[0].value,
+                method: inputs[1].value,
+                requirement: inputs[2].value,
+                notes: inputs[3].value
+            });
+        });
+
+        newPlanData.exercise_categories[newCatName] = { description, exercises };
+        
+
+        if(oldCatName !== newCatName) {
+            newPlanData.daily_schedule.forEach(day => {
+                day.exercises = day.exercises.map(ex => ex === oldCatName ? newCatName : ex);
+            });
+        }
+    });
+    
+    return newPlanData;
+}
+
+
+function saveChanges() {
+    const updatedData = collectDataFromDOM();
+    const jsonString = JSON.stringify(updatedData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plan_data.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    const instructions = document.getElementById('save-instructions');
+    instructions.classList.remove('hidden');
+    setTimeout(() => instructions.classList.add('hidden'), 5000);
+}
